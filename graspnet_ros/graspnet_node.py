@@ -85,6 +85,8 @@ class GraspNetNode(Node):
         """
         カメラの内部パラメータを受け取るコールバック関数
         """
+        if self.camera_info is not None:
+            return  # すでにカメラ情報が設定されている場合は更新しない
 
         self.camera_info = CameraIntrisics(
             width=msg.width,
@@ -95,7 +97,7 @@ class GraspNetNode(Node):
             cy=msg.k[5],
             scale=1000.0,  # 深度画像のスケール（mm単位の場合は1000.0）
         )
-        self.get_logger().info("Camera info received and stored.")
+        print(f"Camera intrisics received: {self.camera_info.__dict__}")
 
     def _get_grasp(self, image_msg, depth_msg):
         """
@@ -131,7 +133,7 @@ class GraspNetNode(Node):
 
         # GraspNetの推論を実行
         grasp_patterns = self.grasp_detector.get_grasps(color, depth, self.camera_info)
-
+        
         # 把持パターンを出版
         self._publish_grasp_pattern(grasp_patterns, image_msg.header)
 

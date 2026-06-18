@@ -47,13 +47,13 @@ class RealsenseBridge(Node):
         self.declare_parameter('depth_topic', '/camera/camera/aligned_depth_to_color/image_raw')
         self.declare_parameter('out_color_topic', '/camera/detection/image')
         self.declare_parameter('out_depth_topic', '/camera/detection/depth')
-        self.declare_parameter('grasp_topic', 'grasp_pattern')
+        # self.declare_parameter('grasp_topic', 'grasp_pattern')
 
         self.color_topic = self.get_parameter('color_topic').get_parameter_value().string_value
         self.depth_topic = self.get_parameter('depth_topic').get_parameter_value().string_value
         self.out_color_topic = self.get_parameter('out_color_topic').get_parameter_value().string_value
         self.out_depth_topic = self.get_parameter('out_depth_topic').get_parameter_value().string_value
-        self.grasp_topic = self.get_parameter('grasp_topic').get_parameter_value().string_value
+        # self.grasp_topic = self.get_parameter('grasp_topic').get_parameter_value().string_value
 
         # Derive camera info topic from color topic
         if 'image_raw' in self.color_topic:
@@ -66,7 +66,7 @@ class RealsenseBridge(Node):
         self.get_logger().info(f"Input Camera Info Topic: {self.camera_info_topic}")
         self.get_logger().info(f"Output Color Topic: {self.out_color_topic}")
         self.get_logger().info(f"Output Depth Topic: {self.out_depth_topic}")
-        self.get_logger().info(f"Grasp Pattern Topic: {self.grasp_topic}")
+        # self.get_logger().info(f"Grasp Pattern Topic: {self.grasp_topic}")
 
         # Load default CameraInfo from meta.mat as fallback
         self.package_root = Path(__file__).resolve().parents[1]
@@ -129,13 +129,13 @@ class RealsenseBridge(Node):
         )
         self.ts.registerCallback(self.image_callback)
 
-        # Grasp subscribers
-        self.grasp_sub = self.create_subscription(
-            GraspPattern,
-            self.grasp_topic,
-            self.grasp_callback,
-            50
-        )
+        # # Grasp subscribers
+        # self.grasp_sub = self.create_subscription(
+        #     GraspPattern,
+        #     self.grasp_topic,
+        #     self.grasp_callback,
+        #     50
+        # )
 
         # Internal state
         self.received = False

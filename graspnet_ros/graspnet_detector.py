@@ -1,5 +1,6 @@
 import sys
 from pathlib import Path
+import copy
 
 import numpy as np
 import open3d
@@ -63,12 +64,16 @@ class GraspNetDetector:
         # xyz点群を生成
         flat_points = self._create_flat_points(depth, camera_info)
         flat_color = color.reshape([-1, 3])
-
-        if flat_points is None or len(flat_points) == 0:
+        
+        # 届かない位置にある点を除外するために、サンプリングされた点群のz座標が1m以上の点を除外
+        masked_color, masked_points = self.mask_images(flat_color, flat_points)
+        
+        
+        if masked_points is None or len(masked_points) == 0:
             return GraspGroup()
 
         # 点群データをサンプリングして入力データ量を調整
-        sampled_color,sampled_points = self._sample_input_data(flat_points, flat_points, num_points=20000)
+        sampled_color,sampled_points = self._sample_input_data(masked_color, masked_points, num_points=20000)
         
         # GraspNetの推論に必要なend_pointsを作成
         end_points = self._create_end_points(sampled_color, sampled_points)
@@ -82,7 +87,7 @@ class GraspNetDetector:
         gg = GraspGroup(gg_array)
         
         # Open3Dの点群を作成
-        colored_points = self._coloring_cloud(flat_color, flat_points)
+        colored_points = self._coloring_cloud(sampled_color, sampled_points)
 
         # 衝突検出を行い、衝突する把持を除外
         collision_mask = self.collision_detect(gg, np.asarray(colored_points.points))
@@ -91,8 +96,16 @@ class GraspNetDetector:
         # 非最大抑制を行い、スコアの高い把持を優先
         gg.nms()
         gg.sort_by_score()
-
+        
         grasp_quantity = 50
+
+
+        # debug: 推論結果と点群を可視化
+        gg_debug = copy.deepcopy(gg)
+        gg_debug = gg_debug[:grasp_quantity]
+        grippers = gg_debug.to_open3d_geometry_list()
+        open3d.visualization.draw_geometries([colored_points, *grippers])
+        
         return gg[:grasp_quantity]
 
     def _create_flat_points(self, depth, camera_info):
@@ -113,6 +126,17 @@ class GraspNetDetector:
 
         
         return points_flat
+    
+    def mask_images(self,color_flat, points_flat, z_threshold=0.4):
+        """
+        マニピュレータから届かない位置にある点，深度画像の値が0の点を除外する関数
+        
+        """
+        mask = (points_flat[:, 2] > 0) & (points_flat[:, 2] < z_threshold)
+        masked_color = color_flat[mask]
+        masked_points = points_flat[mask]
+        
+        return masked_color, masked_points
 
     def _sample_input_data(self, color, points_flat, num_points=20000):
         """
