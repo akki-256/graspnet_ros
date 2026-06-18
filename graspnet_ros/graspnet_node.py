@@ -130,11 +130,10 @@ class GraspNetNode(Node):
         depth = depth_image.astype(np.float32)
 
         # GraspNetの推論を実行
-        grasp_pattern = self.grasp_detector.get_grasp(color, depth, self.camera_info)
-        # grasp_groups = self.grasp_detector.get_grasps(color, depth, self.camera_info)
+        grasp_patterns = self.grasp_detector.get_grasps(color, depth, self.camera_info)
 
         # 把持パターンを出版
-        self._publish_grasp_pattern(grasp_pattern, image_msg.header)
+        self._publish_grasp_pattern(grasp_patterns, image_msg.header)
 
         # ヘッダースタンプを更新
         self._last_publish_time = now
@@ -169,15 +168,19 @@ class GraspNetNode(Node):
         msg.object_id = int(grasp.object_id)
         return msg
 
-    def _publish_grasp_pattern(self, grasp_pattern, header):
+    def _publish_grasp_pattern(self, grasp_patterns, header):
         """
         GraspPatternメッセージを出版する関数
         """
 
-        grasp_pattern_msg = self._grasp_to_msg(grasp_pattern, header)
-        self.grasp_publisher.publish(grasp_pattern_msg)
+        if len(grasp_patterns) == 0:
+            grasp_pattern_msg = self._grasp_to_msg(None, header)
+        else:
+            for grasp_pattern in grasp_patterns:
+                grasp_pattern_msg = self._grasp_to_msg(grasp_pattern, header)
+                self.grasp_publisher.publish(grasp_pattern_msg)
         self.get_logger().info(
-            f"Published grasp pattern with score: {grasp_pattern_msg.score:.4f}"
+            f"Published grasp pattern length: {len(grasp_patterns)}"
         )
 
     # def _publish_grasp_patterns(self, grasp_patterns, header):

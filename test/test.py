@@ -1,7 +1,17 @@
 #!/usr/bin/env python3
 
+import sys
 from pathlib import Path
 import time
+
+PACKAGE_ROOT = Path(__file__).resolve().parents[1]
+WORKSPACE_ROOT = PACKAGE_ROOT.parent.parent
+INSTALL_PYTHON_PATH = WORKSPACE_ROOT / 'install' / 'graspnet_ros' / 'local' / 'lib' / 'python3.10' / 'dist-packages'
+if INSTALL_PYTHON_PATH.exists() and str(INSTALL_PYTHON_PATH) not in sys.path:
+	sys.path.insert(0, str(INSTALL_PYTHON_PATH))
+
+if str(PACKAGE_ROOT) not in sys.path:
+	sys.path.append(str(PACKAGE_ROOT))
 
 import numpy as np
 import open3d as o3d
@@ -11,9 +21,22 @@ from PIL import Image as PILImage
 import rclpy
 from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, HistoryPolicy, QoSProfile, ReliabilityPolicy
+from sensor_msgs.msg import CameraInfo as CameraInfoMsg
 from sensor_msgs.msg import Image
+
 from graspnet_ros.msg import GraspPattern
 from graspnetAPI import Grasp, GraspGroup
+
+
+class CameraInfoModel:
+	def __init__(self, width, height, fx, fy, cx, cy, scale):
+		self.width = width
+		self.height = height
+		self.fx = fx
+		self.fy = fy
+		self.cx = cx
+		self.cy = cy
+		self.scale = scale
 
 
 class SampleImagePublisher(Node):
@@ -27,9 +50,18 @@ class SampleImagePublisher(Node):
 			durability=DurabilityPolicy.TRANSIENT_LOCAL,
 		)
 
-		self.image_publisher = self.create_publisher(Image, '/camera/detection/image', qos_profile)
-		self.depth_publisher = self.create_publisher(Image, '/camera/detection/depth', qos_profile)
-		self.grasp_subscriber = self.create_subscription(GraspPattern, 'grasp_pattern', self._on_grasp_pattern, 50)
+		self.color_topic = '/camera/detection/image'
+		self.depth_topic = '/camera/detection/depth'
+		self.aligned_depth_info_topic = '/camera/camera/aligned_depth_to_color/camera_info'
+
+		self.color_publisher = self.create_publisher(Image, self.color_topic, qos_profile)
+		self.depth_publisher = self.create_publisher(Image, self.depth_topic, qos_profile)
+		self.aligned_depth_info_publisher = self.create_publisher(
+			CameraInfoMsg, self.aligned_depth_info_topic, qos_profile
+		)
+		self.grasp_subscriber = self.create_subscription(
+			GraspPattern, 'grasp_pattern', self._on_grasp_pattern, 50
+		)
 
 		sample_dir = Path(__file__).resolve().parent / 'sample'
 		self.rgb_path = sample_dir / 'rgb.png'
@@ -37,36 +69,57 @@ class SampleImagePublisher(Node):
 		self.workspace_mask_path = sample_dir / 'workspace_mask.png'
 		self.meta_path = Path(__file__).resolve().parents[1] / 'meta.mat'
 
-		self.rgb_image = self._load_rgb_image(self.rgb_path)
-		self.depth_image = self._load_depth_image(self.depth_path)
+		self.rgb_array = self._load_rgb_array(self.rgb_path)
+		self.depth_array = self._load_depth_array(self.depth_path)
 		self.workspace_mask = self._load_workspace_mask(self.workspace_mask_path)
-		self.rgb_image = self._apply_workspace_mask_to_rgb(self.rgb_image, self.workspace_mask)
-		self.depth_image = self._apply_workspace_mask_to_depth(self.depth_image, self.workspace_mask)
-		self.camera_info = self._load_camera_info(self.meta_path)
-		self.point_cloud = self._create_point_cloud(self.depth_image, self.rgb_image, self.camera_info)
-		self._timer_fired = False
+
+		self.rgb_array = self._apply_workspace_mask_to_rgb(self.rgb_array, self.workspace_mask)
+		self.depth_array = self._apply_workspace_mask_to_depth(self.depth_array, self.workspace_mask)
+
+		self.camera_info = self._load_camera_info(self.meta_path, self.rgb_array.shape[:2])
+		self.color_image_msg = self._build_image_msg(
+			self.rgb_array, 'rgb8', 'camera_color_optical_frame'
+		)
+		self.depth_image_msg = self._build_image_msg(
+			self.depth_array, '16UC1', 'camera_depth_optical_frame'
+		)
+		self.color_camera_info_msg = self._build_camera_info_msg(
+			self.camera_info, 'camera_color_optical_frame'
+		)
+		self.depth_camera_info_msg = self._build_camera_info_msg(
+			self.camera_info, 'camera_depth_optical_frame'
+		)
+		self.aligned_depth_camera_info_msg = self._build_camera_info_msg(
+			self.camera_info, 'camera_color_optical_frame'
+		)
+
+		self.point_cloud = self._create_point_cloud(self.depth_array, self.rgb_array, self.camera_info)
+
+		self._publish_timer_fired = False
 		self._batch_header_stamp = None
 		self._received_grasps = []
 		self._batch_last_received_time = None
 		self._batch_timeout_sec = 0.5
 		self._batch_visualized = False
-
-		self.timer = self.create_timer(1.0, self._publish_samples_once)
+		self.publish_timer = self.create_timer(0.5, self._publish_samples_once)
 		self.visualize_timer = self.create_timer(0.1, self._maybe_visualize_received_grasps)
 
 		self.get_logger().info(f'Loaded sample images from {sample_dir}')
-		self.get_logger().info('Waiting for grasp_pattern...')
+		self.get_logger().info('Published topics mirror the RealSense topics.')
+		self.get_logger().info('Waiting for grasp_pattern from graspnet_ros...')
 
-	def _load_camera_info(self, path: Path):
+	def _load_camera_info(self, path: Path, image_shape: tuple[int, int]) -> CameraInfoModel:
 		if not path.exists():
 			raise FileNotFoundError(f'meta.mat not found: {path}')
 
 		meta = scio.loadmat(str(path))
 		intrinsic_matrix = meta['intrinsic_matrix']
 		factor_depth = float(np.asarray(meta['factor_depth']).squeeze())
-		return CameraInfo(
-			width=float(self.rgb_image.width),
-			height=float(self.rgb_image.height),
+		height, width = image_shape
+
+		return CameraInfoModel(
+			width=float(width),
+			height=float(height),
 			fx=float(intrinsic_matrix[0][0]),
 			fy=float(intrinsic_matrix[1][1]),
 			cx=float(intrinsic_matrix[0][2]),
@@ -74,32 +127,24 @@ class SampleImagePublisher(Node):
 			scale=factor_depth,
 		)
 
-	def _load_rgb_image(self, path: Path) -> Image:
+	def _load_rgb_array(self, path: Path) -> np.ndarray:
 		if not path.exists():
 			raise FileNotFoundError(f'RGB image not found: {path}')
 
-		rgb_array = np.array(PILImage.open(path).convert('RGB'), dtype=np.uint8)
-		return self._array_to_image_msg(rgb_array, 'rgb8')
+		return np.array(PILImage.open(path).convert('RGB'), dtype=np.uint8)
 
-	def _load_depth_image(self, path: Path) -> Image:
+	def _load_depth_array(self, path: Path) -> np.ndarray:
 		if not path.exists():
 			raise FileNotFoundError(f'Depth image not found: {path}')
 
-		depth_pil = PILImage.open(path)
-		depth_array = np.array(depth_pil)
-
+		depth_array = np.array(PILImage.open(path))
 		if depth_array.ndim != 2:
 			raise ValueError(f'Depth image must be single-channel, got shape {depth_array.shape}')
 
-		if depth_array.dtype == np.uint16:
-			encoding = '16UC1'
-		elif depth_array.dtype == np.float32:
-			encoding = '32FC1'
-		else:
+		if depth_array.dtype != np.uint16 and depth_array.dtype != np.float32:
 			depth_array = depth_array.astype(np.uint16, copy=False)
-			encoding = '16UC1'
 
-		return self._array_to_image_msg(depth_array, encoding)
+		return depth_array
 
 	def _load_workspace_mask(self, path: Path) -> np.ndarray:
 		if not path.exists():
@@ -108,58 +153,59 @@ class SampleImagePublisher(Node):
 		mask_array = np.array(PILImage.open(path).convert('L'), dtype=np.uint8)
 		return mask_array > 0
 
-	def _apply_workspace_mask_to_rgb(self, rgb_msg: Image, workspace_mask: np.ndarray) -> Image:
-		rgb = np.frombuffer(rgb_msg.data, dtype=np.uint8).reshape((rgb_msg.height, rgb_msg.width, 3)).copy()
+	def _apply_workspace_mask_to_rgb(self, rgb: np.ndarray, workspace_mask: np.ndarray) -> np.ndarray:
 		if workspace_mask.shape != rgb.shape[:2]:
-			raise ValueError(f'workspace_mask shape {workspace_mask.shape} does not match RGB shape {rgb.shape[:2]}')
+			raise ValueError(
+				f'workspace_mask shape {workspace_mask.shape} does not match RGB shape {rgb.shape[:2]}'
+			)
 
-		rgb[~workspace_mask] = 0
-		return self._array_to_image_msg(rgb, 'rgb8')
+		masked_rgb = rgb.copy()
+		masked_rgb[~workspace_mask] = 0
+		return masked_rgb
 
-	def _apply_workspace_mask_to_depth(self, depth_msg: Image, workspace_mask: np.ndarray) -> Image:
-		if depth_msg.encoding == '32FC1':
-			dtype = np.float32
-		else:
-			dtype = np.uint16
-
-		depth = np.frombuffer(depth_msg.data, dtype=dtype).reshape((depth_msg.height, depth_msg.width)).copy()
+	def _apply_workspace_mask_to_depth(self, depth: np.ndarray, workspace_mask: np.ndarray) -> np.ndarray:
 		if workspace_mask.shape != depth.shape:
-			raise ValueError(f'workspace_mask shape {workspace_mask.shape} does not match depth shape {depth.shape}')
+			raise ValueError(
+				f'workspace_mask shape {workspace_mask.shape} does not match depth shape {depth.shape}'
+			)
 
-		depth[~workspace_mask] = 0
-		return self._array_to_image_msg(depth, depth_msg.encoding)
+		masked_depth = depth.copy()
+		masked_depth[~workspace_mask] = 0
+		return masked_depth
 
-	def _create_point_cloud(self, depth_msg: Image, rgb_msg: Image, camera_info) -> o3d.geometry.PointCloud:
-		if depth_msg.encoding == '32FC1':
-			depth = np.frombuffer(depth_msg.data, dtype=np.float32).reshape((depth_msg.height, depth_msg.width))
-		else:
-			depth = np.frombuffer(depth_msg.data, dtype=np.uint16).reshape((depth_msg.height, depth_msg.width))
-		rgb = np.frombuffer(rgb_msg.data, dtype=np.uint8).reshape((rgb_msg.height, rgb_msg.width, 3))
+	def _create_point_cloud(
+		self,
+		depth_array: np.ndarray,
+		rgb_array: np.ndarray,
+		camera_info: CameraInfoModel,
+	) -> o3d.geometry.PointCloud:
+		if depth_array.shape != (int(camera_info.height), int(camera_info.width)):
+			raise ValueError(
+				f'Depth image shape {depth_array.shape} does not match camera info '
+				f'({camera_info.height}, {camera_info.width})'
+			)
 
-		if depth.shape != (int(camera_info.height), int(camera_info.width)):
-			raise ValueError(f'Depth image shape {depth.shape} does not match camera info {(camera_info.height, camera_info.width)}')
-
-		depth_m = depth.astype(np.float32) / camera_info.scale
+		depth_m = depth_array.astype(np.float32) / camera_info.scale
 		height, width = depth_m.shape
 		xmap, ymap = np.meshgrid(np.arange(width), np.arange(height))
+
 		points_z = depth_m
 		points_x = (xmap - camera_info.cx) * points_z / camera_info.fx
 		points_y = (ymap - camera_info.cy) * points_z / camera_info.fy
 		points = np.stack([points_x, points_y, points_z], axis=-1)
 
-		mask = depth > 0
+		mask = depth_array > 0
 		points = points[mask]
-		colors = rgb[mask].astype(np.float32) / 255.0
+		colors = rgb_array[mask].astype(np.float32) / 255.0
 
 		point_cloud = o3d.geometry.PointCloud()
 		point_cloud.points = o3d.utility.Vector3dVector(points.astype(np.float64))
 		point_cloud.colors = o3d.utility.Vector3dVector(colors.astype(np.float64))
 		return point_cloud
 
-	def _array_to_image_msg(self, array: np.ndarray, encoding: str) -> Image:
+	def _build_image_msg(self, array: np.ndarray, encoding: str, frame_id: str) -> Image:
 		msg = Image()
-		msg.header.stamp = self.get_clock().now().to_msg()
-		msg.header.frame_id = 'camera'
+		msg.header.frame_id = frame_id
 		msg.height = int(array.shape[0])
 		msg.width = int(array.shape[1])
 		msg.encoding = encoding
@@ -168,18 +214,53 @@ class SampleImagePublisher(Node):
 		msg.data = array.tobytes()
 		return msg
 
+	def _build_camera_info_msg(self, camera_info: CameraInfoModel, frame_id: str) -> CameraInfoMsg:
+		msg = CameraInfoMsg()
+		msg.header.frame_id = frame_id
+		msg.width = int(camera_info.width)
+		msg.height = int(camera_info.height)
+		msg.distortion_model = 'plumb_bob'
+		msg.d = [0.0] * 5
+		msg.k = [
+			float(camera_info.fx), 0.0, float(camera_info.cx),
+			0.0, float(camera_info.fy), float(camera_info.cy),
+			0.0, 0.0, 1.0,
+		]
+		msg.r = [
+			1.0, 0.0, 0.0,
+			0.0, 1.0, 0.0,
+			0.0, 0.0, 1.0,
+		]
+		msg.p = [
+			float(camera_info.fx), 0.0, float(camera_info.cx), 0.0,
+			0.0, float(camera_info.fy), float(camera_info.cy), 0.0,
+			0.0, 0.0, 1.0, 0.0,
+		]
+		msg.binning_x = 0
+		msg.binning_y = 0
+		return msg
+
 	def _publish_samples_once(self) -> None:
-		if self._timer_fired:
+		if self._publish_timer_fired:
 			return
 
-		self.rgb_image.header.stamp = self.get_clock().now().to_msg()
-		self.depth_image.header.stamp = self.get_clock().now().to_msg()
+		stamp = self.get_clock().now().to_msg()
 
-		self.image_publisher.publish(self.rgb_image)
-		self.depth_publisher.publish(self.depth_image)
-		self._timer_fired = True
-		self.timer.cancel()
-		self.get_logger().info('Published sample RGB and depth images once.')
+		self.color_image_msg.header.stamp = stamp
+		self.depth_image_msg.header.stamp = stamp
+		self.color_camera_info_msg.header.stamp = stamp
+		self.depth_camera_info_msg.header.stamp = stamp
+		self.aligned_depth_camera_info_msg.header.stamp = stamp
+  
+		self.aligned_depth_info_publisher.publish(self.aligned_depth_camera_info_msg)
+		input("Press Enter to publish sample RGB, depth, and camera info once...")
+
+		self.color_publisher.publish(self.color_image_msg)
+		self.depth_publisher.publish(self.depth_image_msg)
+
+		self._publish_timer_fired = True
+		self.publish_timer.cancel()
+		self.get_logger().info('Published sample RGB, depth, and camera info once.')
 
 	def _on_grasp_pattern(self, msg: GraspPattern) -> None:
 		if msg.score < 0:
@@ -230,21 +311,19 @@ class SampleImagePublisher(Node):
 		grasps = self._received_grasps
 		grasp_group = GraspGroup(np.array([grasp.grasp_array for grasp in grasps], dtype=np.float64))
 		grasp_group.sort_by_score()
-		geometries = [self.point_cloud, *grasp_group.to_open3d_geometry_list()]
-		geometries[0] = geometries[0].voxel_down_sample(voxel_size=0.005)
+
+		if len(grasp_group) > 0:
+			grasp_group.sort_by_score()
+
+		point_cloud = self.point_cloud.voxel_down_sample(voxel_size=0.005)
+		geometries = [point_cloud]
+
+		if len(grasp_group) > 0:
+			geometries.extend(grasp_group.to_open3d_geometry_list())
+
 		o3d.visualization.draw_geometries(geometries)
-		rclpy.shutdown()
-
-
-class CameraInfo:
-	def __init__(self, width, height, fx, fy, cx, cy, scale):
-		self.width = width
-		self.height = height
-		self.fx = fx
-		self.fy = fy
-		self.cx = cx
-		self.cy = cy
-		self.scale = scale
+		if rclpy.ok():
+			rclpy.shutdown()
 
 
 def main() -> None:
@@ -257,7 +336,8 @@ def main() -> None:
 		pass
 	finally:
 		node.destroy_node()
-		rclpy.shutdown()
+		if rclpy.ok():
+			rclpy.shutdown()
 
 
 if __name__ == '__main__':

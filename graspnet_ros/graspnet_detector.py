@@ -55,7 +55,7 @@ class GraspNetDetector:
         self.model.eval()
 
 
-    def get_grasp(self, color, depth, camera_info)-> GraspGroup:
+    def get_grasps(self, color, depth, camera_info, grasp_quantity = 1)-> GraspGroup:
         """
         GraspNetの推論結果から最もスコアの高い把持を返す関数
         """
@@ -72,7 +72,7 @@ class GraspNetDetector:
         
         # GraspNetの推論に必要なend_pointsを作成
         end_points = self._create_end_points(sampled_color, sampled_points)
-
+        
         # GraspNetの推論を実行
         with torch.no_grad():
             end_points = self.model(end_points)
@@ -92,34 +92,8 @@ class GraspNetDetector:
         gg.nms()
         gg.sort_by_score()
 
-        return gg[0]
-
-    # def get_grasps(self, color, depth, camera_info):
-    #     """
-    #     GraspNetの推論結果を返す関数
-    #     """
-
-    #     raw_points_np = self._create_raw_points(depth, camera_info)
-
-    #     if raw_points_np is None or len(raw_points_np) == 0:
-    #         return GraspGroup()
-
-    #     # GraspNetの推論に必要なend_pointsを作成
-    #     end_points = self._create_end_points(color, raw_points_np)
-
-    #     with torch.no_grad():
-    #         end_points = self.model(end_points)
-    #         grasp_preds = pred_decode(end_points)
-    #     gg_array = grasp_preds[0].detach().cpu().numpy()
-    #     gg = GraspGroup(gg_array)
-
-    #     collision_mask = self.collision_detect(gg, np.asarray(colored_points.points))
-    #     gg = gg[~collision_mask]
-
-    #     gg.nms()
-    #     gg.sort_by_score()
-
-    #     return gg
+        grasp_quantity = 50
+        return gg[:grasp_quantity]
 
     def _create_flat_points(self, depth, camera_info):
         """
