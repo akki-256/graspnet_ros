@@ -15,8 +15,33 @@ GraspNetAPIおよびgraspnet-baselineのros2 wrapper
 - cv_bridge
 
 ### python_package
-// - torch(TODO version)
+torch torchvision --index-url https://download.pytorch.org/whl/cu126
 
 ## セットアップ
-1. graspnet-baselineのREADME.mdに則って必要なパッケージをインストールする
-2. rosdepを利用して必要なros packageをインストールする(現時点では未対応)
+ビルドスクリプトの実行
+```bash 
+# graspnet-baselineのREADME.mdに則って必要なパッケージをインストールする
+cd <path_to_this_package>
+uv venv
+sourse .venv/bin/activate
+
+cd graspnet-baselink
+uv pip install -r requierments.txt
+
+cd pointnet2
+python setup.py install
+
+cd ../knn
+python setup.py install
+
+cd ../graspnetAPIL
+uv pip insatall .
+
+# pytorchのインストール
+uv pip install torch torchvision --index-url https://download.pytorch.org/whl/cu126
+# rosdepを利用して必要なros packageをインストールする(現時点では未対応)
+# 必要に応じてrosdep install -r -y -i --from-paths .
+# 
+cd ~/llm-arm
+colcon build --packages-select graspnet_ros
+```
