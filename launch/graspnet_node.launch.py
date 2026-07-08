@@ -3,8 +3,12 @@ from launch import LaunchDescription
 from launch_ros.actions import Node
 from ament_index_python.packages import get_package_share_directory
 
+from ament_index_python.packages import get_package_prefix
+
 def generate_launch_description():
-    venv_root = os.path.join('/root/llm_arm_ws/src/graspnet_ros/.venv')
+    pkg_prefix = get_package_prefix('graspnet_ros') # e.g. <workspace>/install/graspnet_ros
+    ws_root = os.path.dirname(os.path.dirname(pkg_prefix))
+    venv_root = os.path.join(ws_root, 'src', 'graspnet_ros', '.venv')
     print(f"Virtual environment root: {venv_root}")
     venv_bin = os.path.join(venv_root, 'bin')
     

@@ -12,14 +12,17 @@ find_package(rclpy REQUIRED)
 find_package(rosidl_default_generators REQUIRED)
 find_package(std_msgs REQUIRED)
 
-# `rosidl_generate_interfaces` (with rosidl_generator_py) will invoke
-# ament_python installation steps when needed. Avoid calling
-# `ament_python_install_package` here to prevent duplicate target errors.
-# ament_python_install_package(${PROJECT_NAME})
-
 rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/GraspPattern.msg"
   DEPENDENCIES std_msgs
+)
+
+install(DIRECTORY graspnet_ros
+  DESTINATION ${PYTHON_INSTALL_DIR}
+)
+
+install(DIRECTORY graspnet-baseline
+  DESTINATION share/${PROJECT_NAME}
 )
 
 install(PROGRAMS scripts/graspnet_node DESTINATION lib/${PROJECT_NAME})

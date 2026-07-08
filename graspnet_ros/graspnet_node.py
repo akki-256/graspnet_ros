@@ -60,7 +60,7 @@ class GraspNetNode(Node):
         self.ts.registerCallback(self._get_grasp)
 
         self.camera_info_subscriber = self.create_subscription(
-            CameraInfo, "/camera/camera/depth/camera_info", self._camera_info_callback, 10
+            CameraInfo, "/camera/camera/aligned_depth_to_color/camera_info", self._camera_info_callback, 10
         )
 
         # realsense_cameraのメタデータ

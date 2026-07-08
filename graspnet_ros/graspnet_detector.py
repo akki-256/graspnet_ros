@@ -6,8 +6,10 @@ import numpy as np
 import open3d
 import torch
 
-PACKAGE_ROOT = Path(__file__).resolve().parents[1]
-GRASPNET_BASELINE_ROOT = PACKAGE_ROOT / "graspnet-baseline"
+from ament_index_python.packages import get_package_share_directory
+
+PACKAGE_SHARE = Path(get_package_share_directory('graspnet_ros'))
+GRASPNET_BASELINE_ROOT = PACKAGE_SHARE / "graspnet-baseline"
 
 sys.path.append(str(GRASPNET_BASELINE_ROOT / "utils"))
 sys.path.append(str(GRASPNET_BASELINE_ROOT / "graspnetAPI"))
