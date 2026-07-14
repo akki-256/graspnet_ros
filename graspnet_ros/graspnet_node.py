@@ -47,10 +47,10 @@ class GraspNetNode(Node):
 
         # Subscriber
         self.detection_image_subscriber = message_filters.Subscriber(
-            self, Image, "/camera/detection/image"
+            self, Image, "/camera/camera/detect_coler/image_raw"
         )
         self.detection_depth_subscriber = message_filters.Subscriber(
-            self, Image, "/camera/detection/depth"
+            self, Image, "/camera/camera/aligned_detect_depth/image_raw"
         )
         self.ts = message_filters.ApproximateTimeSynchronizer(
             [self.detection_image_subscriber, self.detection_depth_subscriber],
@@ -133,7 +133,7 @@ class GraspNetNode(Node):
 
         # GraspNetの推論を実行
         grasp_patterns = self.grasp_detector.get_grasps(color, depth, self.camera_info)
-        
+
         # 把持パターンを出版
         self._publish_grasp_pattern(grasp_patterns, image_msg.header)
 
