@@ -28,6 +28,9 @@ source .venv/bin/activate
 cd graspnet-baseline
 uv pip install -r requirements.txt
 
+# pytorchのインストール
+uv pip install torch torchvision --index-url https://download.pytorch.org/whl/cu126
+
 cd pointnet2
 python setup.py install
 
@@ -37,8 +40,6 @@ python setup.py install
 cd ../graspnetAPIL
 uv pip insatall .
 
-# pytorchのインストール
-uv pip install torch torchvision --index-url https://download.pytorch.org/whl/cu126
 # rosdepを利用して必要なros packageをインストールする(現時点では未対応)
 # 必要に応じてrosdep install -r -y -i --from-paths .
 # 
