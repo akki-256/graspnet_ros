@@ -23,7 +23,7 @@ torch torchvision --index-url https://download.pytorch.org/whl/cu126
 # graspnet-baselineのREADME.mdに則って必要なパッケージをインストールする
 cd <path_to_this_package>
 uv venv
-sourse .venv/bin/activate
+source .venv/bin/activate
 
 cd graspnet-baselink
 uv pip install -r requierments.txt
