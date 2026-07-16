@@ -38,7 +38,7 @@ cd ../knn
 python setup.py install
 
 cd ../graspnetAPI
-uv pip insatall .
+uv pip install .
 
 # rosdepを利用して必要なros packageをインストールする(現時点では未対応)
 # 必要に応じてrosdep install -r -y -i --from-paths .
