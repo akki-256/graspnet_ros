@@ -25,7 +25,7 @@ cd <path_to_this_package>
 uv venv
 source .venv/bin/activate
 
-cd graspnet-baselink
+cd graspnet-baseline
 uv pip install -r requierments.txt
 
 cd pointnet2
