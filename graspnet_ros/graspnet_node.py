@@ -47,7 +47,7 @@ class GraspNetNode(Node):
 
         # Subscriber
         self.detection_image_subscriber = message_filters.Subscriber(
-            self, Image, "/camera/camera/detect_coler/image_raw"
+            self, Image, "/camera/camera/detect_color/image_raw"
         )
         self.detection_depth_subscriber = message_filters.Subscriber(
             self, Image, "/camera/camera/aligned_detect_depth/image_raw"
