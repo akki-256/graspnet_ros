@@ -43,11 +43,11 @@ class GraspNetNode(Node):
         super().__init__("graspnet_node")
 
         # Publisher
-        self.grasp_publisher = self.create_publisher(GraspPattern, "grasp_pattern", 10)
+        self.grasp_publisher = self.create_publisher(GraspPattern, "/grasp_pattern", 10)
 
         # Subscriber
         self.detection_image_subscriber = message_filters.Subscriber(
-            self, Image, "/camera/camera/detect_coler/image_raw"
+            self, Image, "/camera/camera/detect_color/image_raw"
         )
         self.detection_depth_subscriber = message_filters.Subscriber(
             self, Image, "/camera/camera/aligned_detect_depth/image_raw"
@@ -60,7 +60,7 @@ class GraspNetNode(Node):
         self.ts.registerCallback(self._get_grasp)
 
         self.camera_info_subscriber = self.create_subscription(
-            CameraInfo, "/camera/camera/aligned_depth_to_color/camera_info", self._camera_info_callback, 10
+            CameraInfo, "/realsense_d435_camera/realsense_d435_camera/aligned_depth_to_color/camera_info", self._camera_info_callback, 10
         )
 
         # realsense_cameraのメタデータ
