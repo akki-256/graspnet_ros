@@ -100,11 +100,11 @@ class GraspNetDetector:
         gg.sort_by_score()
 
 
-        # debug: 推論結果と点群を可視化
-        gg_debug = copy.deepcopy(gg)
-        gg_debug = gg_debug[:grasp_quantity]
-        grippers = gg_debug.to_open3d_geometry_list()
-        open3d.visualization.draw_geometries([colored_points, *grippers])
+        # # debug: 推論結果と点群を可視化
+        # gg_debug = copy.deepcopy(gg)
+        # gg_debug = gg_debug[:grasp_quantity]
+        # grippers = gg_debug.to_open3d_geometry_list()
+        # open3d.visualization.draw_geometries([colored_points, *grippers])
 
         return gg[:grasp_quantity]
 

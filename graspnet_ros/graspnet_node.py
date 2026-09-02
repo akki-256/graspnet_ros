@@ -135,7 +135,8 @@ class GraspNetNode(Node):
         grasp_patterns = self.grasp_detector.get_grasps(color, depth, self.camera_info)
 
         # 把持パターンを出版
-        self._publish_grasp_pattern(grasp_patterns, image_msg.header)
+        self.get_logger().info(f"header:{header}")
+        self._publish_grasp_pattern(grasp_patterns, header)
 
         # ヘッダースタンプを更新
         self._last_publish_time = now
