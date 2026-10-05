@@ -108,7 +108,7 @@ class SampleImagePublisher(Node):
 		self.get_logger().info('Published topics mirror the RealSense topics.')
 		self.get_logger().info('Waiting for grasp_pattern from graspnet_ros...')
 
-	def _load_camera_info(self, path: Path, image_shape: tuple[int, int]) -> CameraInfoModel:
+	def _load_camera_info(self, path: Path, image_shape: tuple) -> CameraInfoModel:
 		if not path.exists():
 			raise FileNotFoundError(f'meta.mat not found: {path}')
 
