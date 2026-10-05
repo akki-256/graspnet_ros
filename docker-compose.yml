@@ -1,0 +1,23 @@
+version: '3.8'
+
+services:
+  graspnet:
+    build: .
+    image: graspnet_ros:jetson
+    container_name: graspnet_ros_container
+    runtime: nvidia
+    network_mode: host
+    ipc: host
+    volumes:
+      - .:/workspace/src/graspnet_ros
+      - /tmp/.X11-unix:/tmp/.X11-unix
+      - /dev:/dev
+    command: sleep infinity
+    environment:
+      - DISPLAY=$DISPLAY
+      - QT_X11_NO_MITSHM=1
+      - ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-0}
+      - LD_PRELOAD=/usr/local/lib/python3.8/dist-packages/scikit_learn.libs/libgomp-d22c30c5.so.1.0.0
+    privileged: true
+    tty: true
+    stdin_open: true

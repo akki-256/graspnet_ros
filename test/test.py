@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-
+from __future__ import annotations
 import sys
 from pathlib import Path
 import time
@@ -50,9 +50,9 @@ class SampleImagePublisher(Node):
 			durability=DurabilityPolicy.TRANSIENT_LOCAL,
 		)
 
-		self.color_topic = '/camera/detection/image'
-		self.depth_topic = '/camera/detection/depth'
-		self.aligned_depth_info_topic = '/camera/camera/aligned_depth_to_color/camera_info'
+		self.color_topic = '/camera/camera/detect_color/image_raw'
+		self.depth_topic = '/camera/camera/aligned_detect_depth/image_raw'
+		self.aligned_depth_info_topic = '/realsense_d435_camera/realsense_d435_camera/aligned_depth_to_color/camera_info'
 
 		self.color_publisher = self.create_publisher(Image, self.color_topic, qos_profile)
 		self.depth_publisher = self.create_publisher(Image, self.depth_topic, qos_profile)
