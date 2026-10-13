@@ -31,7 +31,7 @@ install(FILES meta.mat
   DESTINATION share/${PROJECT_NAME}
 )
 
-install(DIRECTORY launch
+install(DIRECTORY launch config
   DESTINATION share/${PROJECT_NAME}
 )
 
