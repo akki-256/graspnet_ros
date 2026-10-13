@@ -76,6 +76,8 @@ class GraspNetNode(Node):
         self.min_publish_interval = float(
             self.get_parameter("min_publish_interval").value
         )
+        self.declare_parameter("depth_scale", 0.0)  # 0.0: 自動判定, 1.0: m単位(Gazebo), 1000.0: mm単位(RealSense)
+        self.depth_scale = float(self.get_parameter("depth_scale").value)
         self._last_publish_time = 0.0
         self._last_header_stamp = None
 
@@ -95,7 +97,7 @@ class GraspNetNode(Node):
             fy=msg.k[4],
             cx=msg.k[2],
             cy=msg.k[5],
-            scale=1000.0,  # 深度画像のスケール（mm単位の場合は1000.0）
+            scale=1000.0,  # 深度画像のスケール（初期値）
         )
         print(f"Camera intrisics received: {self.camera_info.__dict__}")
 
@@ -128,8 +130,21 @@ class GraspNetNode(Node):
 
         # TODO 色情報の順番が違う可能性あり(imgmsg_to_cv2時にrgb8を指定しているため、色の順番はRGBのはず)
         color = color_image.astype(np.float32) / 255.0
-        # TODO 明らかにマニピュレータが届かない距離，ノイズなどを事前にフィルタリングする
         depth = depth_image.astype(np.float32)
+        # Gazebo (32FC1) 等で発生する NaN / Inf を 0.0 に安全置換
+        depth = np.nan_to_num(depth, nan=0.0, posinf=0.0, neginf=0.0)
+
+        # 深度画像のスケール決定 (mへの換算係数)
+        if self.depth_scale > 0.0:
+            scale = self.depth_scale
+        elif depth_msg.encoding == "32FC1" or np.issubdtype(depth_image.dtype, np.floating) or np.nanmax(depth) < 20.0:
+            scale = 1.0  # Gazebo等 (メートル単位)
+        else:
+            scale = 1000.0  # 実機RealSense 16UC1等 (ミリメートル単位)
+        self.camera_info.scale = scale
+        self.get_logger().info(
+            f"Depth encoding: '{depth_msg.encoding}', dtype: {depth_image.dtype}, applied scale: {scale}"
+        )
 
         # GraspNetの推論を実行
         grasp_patterns = self.grasp_detector.get_grasps(color, depth, self.camera_info)
