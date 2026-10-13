@@ -43,10 +43,10 @@ class RealsenseBridge(Node):
         super().__init__('realsense_bridge')
 
         # Declare parameters for topics with default Realsense camera topics
-        self.declare_parameter('color_topic', '/camera/camera/color/image_raw')
-        self.declare_parameter('depth_topic', '/camera/camera/aligned_depth_to_color/image_raw')
-        self.declare_parameter('out_color_topic', '/camera/detection/image')
-        self.declare_parameter('out_depth_topic', '/camera/detection/depth')
+        self.declare_parameter('color_topic', '/realsense_d435_camera/realsense_d435_camera/color/image_raw')
+        self.declare_parameter('depth_topic', '/realsense_d435_camera/realsense_d435_camera/aligned_depth_to_color/image_raw')
+        self.declare_parameter('out_color_topic', '/camera/camera/detect_color/image_raw')
+        self.declare_parameter('out_depth_topic', '/camera/camera/aligned_detect_depth/image_raw')
         # self.declare_parameter('grasp_topic', 'grasp_pattern')
 
         self.color_topic = self.get_parameter('color_topic').get_parameter_value().string_value
@@ -233,9 +233,8 @@ class RealsenseBridge(Node):
 
         # Load depth array safely
         depth = br.imgmsg_to_cv2(depth_msg, desired_encoding='passthrough')
-        if depth_msg.encoding == '32FC1':
+        if depth_msg.encoding == '32FC1' or np.nanmax(depth) < 20.0:
             actual_scale = 1.0
-            raise NotImplementedError("32FC1 depth encoding is not currently supported in this implementation.")
         else:
             actual_scale = 1000.0
 

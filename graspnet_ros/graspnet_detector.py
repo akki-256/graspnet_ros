@@ -101,10 +101,11 @@ class GraspNetDetector:
 
 
         # # debug: 推論結果と点群を可視化
-        # gg_debug = copy.deepcopy(gg)
-        # gg_debug = gg_debug[:grasp_quantity]
-        # grippers = gg_debug.to_open3d_geometry_list()
-        # open3d.visualization.draw_geometries([colored_points, *grippers])
+        print("degub")
+        gg_debug = copy.deepcopy(gg)
+        gg_debug = gg_debug[:grasp_quantity]
+        grippers = gg_debug.to_open3d_geometry_list()
+        open3d.visualization.draw_geometries([colored_points, *grippers])
 
         return gg[:grasp_quantity]
 
@@ -117,7 +118,10 @@ class GraspNetDetector:
         xmap = np.arange(width)
         ymap = np.arange(height)
         xmap, ymap = np.meshgrid(xmap, ymap)
-        points_z = depth /1000.0 # 深度画像単位 mm -> m
+        scale = getattr(camera_info, "scale", 1000.0)
+        if scale <= 0:
+            scale = 1.0 if np.nanmax(depth) < 20.0 else 1000.0
+        points_z = depth / scale # 深度画像単位 (m: scale=1.0, mm: scale=1000.0) -> m
         points_x = (xmap - camera_info.cx) * points_z / camera_info.fx
         points_y = (ymap - camera_info.cy) * points_z / camera_info.fy
         raw_points_np = np.stack([points_x, points_y, points_z], axis=-1)
@@ -127,7 +131,7 @@ class GraspNetDetector:
 
         return points_flat
 
-    def mask_images(self,color_flat, points_flat, z_threshold=0.4):
+    def mask_images(self,color_flat, points_flat, z_threshold=0.8):
         """
         マニピュレータから届かない位置にある点，深度画像の値が0の点を除外する関数
 
